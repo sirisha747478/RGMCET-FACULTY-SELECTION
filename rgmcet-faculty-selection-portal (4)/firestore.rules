@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: students
+    // Document ID: registrationNumber
+    // Fields:
+    //   - registrationNumber: string (required)
+    //   - name: string (required)
+    //   - branch: string (optional)
+    //   - year: string (optional)
+    //   - phoneNumber: string (optional)
+    //   - dob: string (required, hashed)
+    //   - selections: map (optional)
+    //   - isSubmitted: bool (optional)
+    //   - uid: string (optional)
+    //
+    // Collection: subjects
+    // Document ID: subjectId
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //
+    // Collection: faculty
+    // Document ID: facultyId
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //   - subjectId: string (required)
+    //   - studentCount: number (required)
+    //
+    // Collection: users
+    // Document ID: uid
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (optional, for admin)
+    //   - registrationNumber: string (optional, for student)
+    //   - role: string (required, enum: ['admin', 'student'])
+    //   - lastLogin: string (optional, ISO 8601)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        ((request.auth.token.email == "sirimajjari7474@gmail.com" && request.auth.token.email_verified == true) || 
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isStudent(studentId) {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.registrationNumber == studentId;
+    }
+
+    function isValidStudent(data) {
+      return data.keys().hasAll(['registrationNumber', 'name', 'dob']) &&
+             data.registrationNumber is string &&
+             data.name is string &&
+             data.dob is string;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'role']) &&
+             data.uid is string &&
+             data.role in ['admin', 'student'];
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /students/{studentId} {
+      allow get, list: if true;
+      allow write: if isAdmin();
+      
+      allow update: if isAuthenticated() && 
+        isValidStudent(request.resource.data) &&
+        (isStudent(studentId) || (!('uid' in resource.data) && request.resource.data.uid == request.auth.uid)) &&
+        (
+          (!('isSubmitted' in resource.data) || resource.data.isSubmitted == false) || 
+          (resource.data.isSubmitted == true && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid']))
+        ) &&
+        request.resource.data.registrationNumber == resource.data.registrationNumber;
+    }
+
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /faculty/{facultyId} {
+      allow read: if true;
+      allow update: if isAuthenticated() && 
+                    (isAdmin() || (
+                      request.resource.data.diff(resource.data).affectedKeys().hasOnly(['studentCount']) &&
+                      request.resource.data.studentCount == resource.data.studentCount + 1 &&
+                      request.resource.data.studentCount <= 70
+                    ));
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow get: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data);
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin()) && isValidUser(request.resource.data);
+      allow delete: if isAdmin();
+    }
+  }
+}
