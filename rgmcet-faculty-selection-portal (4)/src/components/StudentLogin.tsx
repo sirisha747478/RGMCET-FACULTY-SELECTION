@@ -347,10 +347,27 @@ export default function StudentLogin() {
                 inputMode="numeric"
                 maxLength={10}
                 onChange={(e) => {
-                  // Allow digits, slashes, and dashes. Let students type manually.
-                  let val = e.target.value.replace(/[^\d/-]/g, "");
-                  if (val.length > 10) val = val.slice(0, 10);
-                  setDob(val);
+                  const inputVal = e.target.value;
+                  
+                  // If the user is deleting (backspacing), just update the state directly
+                  // This prevents the cursor from jumping and allows deleting slashes
+                  if (inputVal.length < dob.length) {
+                    setDob(inputVal);
+                    return;
+                  }
+                  
+                  // Otherwise, format the input automatically
+                  let val = inputVal.replace(/\D/g, ""); // Keep only digits
+                  if (val.length > 8) val = val.slice(0, 8);
+                  
+                  let formatted = val;
+                  if (val.length > 4) {
+                    formatted = `${val.slice(0, 2)}/${val.slice(2, 4)}/${val.slice(4)}`;
+                  } else if (val.length > 2) {
+                    formatted = `${val.slice(0, 2)}/${val.slice(2)}`;
+                  }
+                  
+                  setDob(formatted);
                 }}
                 className="input-field pr-12"
               />
