@@ -77,14 +77,14 @@ export default function StudentLogin() {
       let paddedDob = "";
       let unpaddedDob = "";
 
-      if (dob.length === 8 && !dob.includes("/")) {
+      if (dob.length === 8 && !dob.includes("/") && !dob.includes("-")) {
         const d = dob.slice(0, 2);
         const m = dob.slice(2, 4);
         const y = dob.slice(4, 8);
         paddedDob = `${d}-${m}-${y}`;
         unpaddedDob = `${parseInt(d)}-${parseInt(m)}-${y}`;
-      } else if (dob.includes("/")) {
-        const parts = dob.split("/");
+      } else if (dob.includes("/") || dob.includes("-")) {
+        const parts = dob.split(/[\/-]/);
         if (parts.length === 3) {
           const [d, m, y] = parts;
           // Ensure day and month are padded for paddedDob
@@ -96,7 +96,7 @@ export default function StudentLogin() {
       }
 
       if (!paddedDob) {
-        toast.error("Please enter Date of Birth in DDMMYYYY format.");
+        toast.error("Please enter Date of Birth in DD/MM/YYYY format.");
         setLoading(false);
         return;
       }
@@ -342,12 +342,14 @@ export default function StudentLogin() {
               <input
                 type="text"
                 required
-                placeholder="DDMMYYYY"
+                placeholder="DD/MM/YYYY"
                 value={dob}
                 inputMode="numeric"
+                maxLength={10}
                 onChange={(e) => {
-                  let val = e.target.value.replace(/\D/g, ""); // Keep only digits
-                  if (val.length > 8) val = val.slice(0, 8);
+                  // Allow digits, slashes, and dashes. Let students type manually.
+                  let val = e.target.value.replace(/[^\d/-]/g, "");
+                  if (val.length > 10) val = val.slice(0, 10);
                   setDob(val);
                 }}
                 className="input-field pr-12"
@@ -358,7 +360,7 @@ export default function StudentLogin() {
                 onChange={(e) => {
                   if (e.target.value) {
                     const [y, m, d] = e.target.value.split("-");
-                    setDob(`${d}${m}${y}`);
+                    setDob(`${d}/${m}/${y}`);
                   }
                 }}
               />
